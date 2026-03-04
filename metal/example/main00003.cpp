@@ -49,7 +49,6 @@ int main()
     auto bufB = device->newBuffer(B.data(),
                                   N * sizeof(float),
                                   MTL::ResourceStorageModeManaged);
-    auto bufN = device->newBuffer(&N, sizeof(uint32_t), MTL::ResourceStorageModeShared);
 
     // Execute compute command
     auto cmdBuffer = queue->commandBuffer();
@@ -57,7 +56,7 @@ int main()
     encoder->setComputePipelineState(pipeline);
     encoder->setBuffer(bufA, 0, 0);
     encoder->setBuffer(bufB, 0, 1);
-    encoder->setBytes(bufN, 0, 2);
+    encoder->setBytes(&N, sizeof(uint32_t), 2);
 
     MTL::Size gridSize(N, 1, 1);
     MTL::Size threadGroupSize(1, 1, 1);
@@ -79,7 +78,6 @@ int main()
     cmdBuffer->release();
     bufA->release();
     bufB->release();
-    bufN->release();
     pipeline->release();
     func->release();
     library->release();
