@@ -75,5 +75,16 @@ int main()
         std::cout << v << " ";
     std::cout << std::endl;
 
+    encoder->release();
+    cmdBuffer->release();
+    bufA->release();
+    bufB->release();
+    bufC->release();
+    pipeline->release();
+    func->release();
+    library->release();
+    queue->release();
+    device->release();
+
     return EXIT_SUCCESS;
 }
