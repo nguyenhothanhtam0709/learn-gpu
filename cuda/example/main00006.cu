@@ -4,6 +4,15 @@
  * NOTE: not tested yet
  */
 
+/**
+ * NOTE:
+ * - Cooperative Loading
+ * - Compute
+ * - Sliding Window
+ *
+ * Apply GPU's Memory Coalescing
+ */
+
 #include <iostream>
 #include <math.h>
 #include <cuda_runtime.h>
