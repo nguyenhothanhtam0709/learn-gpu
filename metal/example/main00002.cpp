@@ -53,9 +53,9 @@ int main()
                                   MTL::ResourceStorageModeShared);
     auto bufC = device->newBuffer(M * K * sizeof(float),
                                   MTL::ResourceStorageModeShared);
-    auto bufM = device->newBuffer(&M, sizeof(uint32_t), MTL::ResourceStorageModeShared);
-    auto bufN = device->newBuffer(&N, sizeof(uint32_t), MTL::ResourceStorageModeShared);
-    auto bufK = device->newBuffer(&K, sizeof(uint32_t), MTL::ResourceStorageModeShared);
+    // auto bufM = device->newBuffer(&M, sizeof(uint32_t), MTL::ResourceStorageModeShared);
+    // auto bufN = device->newBuffer(&N, sizeof(uint32_t), MTL::ResourceStorageModeShared);
+    // auto bufK = device->newBuffer(&K, sizeof(uint32_t), MTL::ResourceStorageModeShared);
 
     // Execute compute command
     auto cmdBuffer = queue->commandBuffer();
@@ -64,9 +64,12 @@ int main()
     encoder->setBuffer(bufA, 0, 0);
     encoder->setBuffer(bufB, 0, 1);
     encoder->setBuffer(bufC, 0, 2);
-    encoder->setBuffer(bufM, 0, 3);
-    encoder->setBuffer(bufN, 0, 4);
-    encoder->setBuffer(bufK, 0, 5);
+    // encoder->setBuffer(bufM, 0, 3);
+    // encoder->setBuffer(bufN, 0, 4);
+    // encoder->setBuffer(bufK, 0, 5);
+    encoder->setBytes(&M, sizeof(uint32_t), 3);
+    encoder->setBytes(&N, sizeof(uint32_t), 4);
+    encoder->setBytes(&K, sizeof(uint32_t), 5);
 
     MTL::Size gridSize(M, K, 1);
     MTL::Size threadGroupSize(16, 16, 1);
@@ -89,9 +92,9 @@ int main()
     bufA->release();
     bufB->release();
     bufC->release();
-    bufM->release();
-    bufN->release();
-    bufK->release();
+    // bufM->release();
+    // bufN->release();
+    // bufK->release();
     pipeline->release();
     func->release();
     library->release();
