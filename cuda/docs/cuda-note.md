@@ -58,3 +58,12 @@ SM has 4 warps:
 Tile programming utilizes GPU Shared Memory to cache data locally within a block, drastically reducing high-latency Global Memory (VRAM) access. In this pattern, all threads in a block cooperatively load a tile (e.g., $16 \times 16$ or $32 \times 32$ elements) into Shared Memory. During the loading phase, because threads access contiguous memory addresses, the hardware performs **Memory Coalescing**, grouping up to 32 requests into a single high-bandwidth 'burst' transfer. Once the tile is loaded, the data is reused multiple times by all threads in the block at near-register speeds.
 
 # Bank Conflicts
+
+# Some other optimization
+
+- warp aggregated atomics
+- cooperative groups
+- persistent threads
+- LDG cache loads
+- cp.async + shared memory pipeline
+- occupancy tuning
