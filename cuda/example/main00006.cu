@@ -1,7 +1,5 @@
 /**
  * Tiling matrix multiplication on CUDA
- *
- * NOTE: not tested yet
  */
 
 /**

@@ -1,7 +1,5 @@
 /**
  * Elemental-wise add on CUDA
- *
- * NOTE: not tested yet
  */
 
 #include <iostream>
@@ -36,15 +34,21 @@ void solve(const float *A, const float *B, float *C, int N)
     int blocksPerGrid = numSMs * 32;
 
     // Memory Prefetching: Move data to GPU VRAM before execution
-    cudaMemPrefetchAsync(A, N * sizeof(float), deviceId);
-    cudaMemPrefetchAsync(B, N * sizeof(float), deviceId);
-    cudaMemPrefetchAsync(C, N * sizeof(float), deviceId);
+    cudaMemLocation location;
+    location.type = cudaMemLocationTypeDevice;
+    location.id = deviceId;
+    cudaMemPrefetchAsync(A, N * sizeof(float), location, 0);
+    cudaMemPrefetchAsync(B, N * sizeof(float), location, 0);
+    cudaMemPrefetchAsync(C, N * sizeof(float), location, 0);
 
     // Launch the Kernel
     vector_add<<<blocksPerGrid, threadsPerBlock>>>(A, B, C, N);
 
     // Memory Prefetching: Move results back to CPU RAM for verification
-    cudaMemPrefetchAsync(C, N * sizeof(float), cudaCpuDeviceId);
+    cudaMemLocation locationCPU;
+    locationCPU.type = cudaMemLocationTypeHost;
+    locationCPU.id = 0;
+    cudaMemPrefetchAsync(C, N * sizeof(float), locationCPU, 0);
 
     // Wait for GPU to finish all tasks
     cudaDeviceSynchronize();
