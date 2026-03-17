@@ -18,5 +18,10 @@
     "node": "^22"
   },
   "engineStrict": true,
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "webgpu"
+    ]
+  },
   "packageManager": "pnpm@9.15.0"
 }
