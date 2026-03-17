@@ -27,26 +27,34 @@ __global__ void matrix_multiplication(const float *__restrict__ A,
 
     int row = blockIdx.y * TILE_SIZE + threadIdx.y;
     int col = blockIdx.x * TILE_SIZE + threadIdx.x;
+    int lRow = threadIdx.y; // local row within tile
+    int lCol = threadIdx.x; // local col within tile
 
     float sum = 0.0f;
+    int numTiles = (N + TILE_SIZE - 1) / TILE_SIZE;
 
-    for (int t = 0; t < (N + TILE_SIZE - 1) / TILE_SIZE; ++t)
+    for (int t = 0; t < numTiles; ++t)
     {
 
-        if (row < M && (t * TILE_SIZE + threadIdx.x) < N)
-            tileA[threadIdx.y][threadIdx.x] = A[row * N + t * TILE_SIZE + threadIdx.x];
+        // --- Load tile of A (row-major) ---
+        int aCol = t * TILE_SIZE + lCol;
+        if (row < M && aCol < N)
+            tileA[lRow][lCol] = A[row * N + aCol];
         else
-            tileA[threadIdx.y][threadIdx.x] = 0.0f;
+            tileA[lRow][lCol] = 0.0f;
 
-        if (col < K && (t * TILE_SIZE + threadIdx.y) < N)
-            tileB[threadIdx.y][threadIdx.x] = B[(t * TILE_SIZE + threadIdx.y) * K + col];
+        // --- Load tile of B (row-major) ---
+        int bRow = t * TILE_SIZE + threadIdx.y;
+        if (col < K && bRow < N)
+            tileB[lRow][lCol] = B[bRow * K + col];
         else
-            tileB[threadIdx.y][threadIdx.x] = 0.0f;
+            tileB[lRow][lCol] = 0.0f;
 
         __syncthreads();
 
+        // --- Accumulate partial dot product from this tile ---
         for (int k = 0; k < TILE_SIZE; ++k)
-            sum += tileA[threadIdx.y][k] * tileB[k][threadIdx.x];
+            sum += tileA[lRow][k] * tileB[k][lCol];
 
         __syncthreads();
     }
@@ -61,7 +69,7 @@ void solve(const float *A, // M x N matrix
            int M, int N, int K)
 {
     // NOTE: dim3(xDim, yDim, zDim)
-    dim3 threadsPerBlock(16, 16); // 256 threads
+    dim3 threadsPerBlock(TILE_SIZE, TILE_SIZE); // 256 threads
     dim3 blocksPerGrid(/* Width: */ (K + threadsPerBlock.x - 1) / threadsPerBlock.x,
                        /* Height: */ (M + threadsPerBlock.y - 1) / threadsPerBlock.y);
 
