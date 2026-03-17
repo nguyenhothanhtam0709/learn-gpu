@@ -1,0 +1,22 @@
+{
+  "name": "webgpu-example",
+  "type": "module",
+  "scripts": {
+    "tc": "tsc src/main00001.ts --noEmit",
+    "dev": "node --loader ts-node/esm src/main00001.ts"
+  },
+  "dependencies": {
+    "webgpu": "^0.3.8"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "@webgpu/types": "^0.1.69",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": "^22"
+  },
+  "engineStrict": true,
+  "packageManager": "pnpm@9.15.0"
+}
