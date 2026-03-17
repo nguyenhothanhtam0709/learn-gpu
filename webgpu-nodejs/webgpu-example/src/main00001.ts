@@ -9,6 +9,8 @@ Object.assign(globalThis, globals);
 Object.assign(globalThis.navigator, {
   gpu: createGPU([]),
 });
+
+const THREAD_WORKGROUP_SIZE = 64;
 //#endregion
 
 function createBuffer(
@@ -35,94 +37,109 @@ async function main(): Promise<void> {
 
   const gpuDevice = await gpuAdapter.requestDevice();
   if (!gpuDevice) throw new Error("GPU device is not available!");
+
+  const gpuCmdQueue = gpuDevice.queue;
   //#endregion
 
   //#region Create buffer
   const N = 10_000;
+  const bufferSizeC = N * Float32Array.BYTES_PER_ELEMENT;
+
   const arrA = new Float32Array(N).map((_, i) => i);
   const arrB = new Float32Array(N).map((_, i) => i * 2);
 
   const bufferA = createBuffer(gpuDevice, arrA, GPUBufferUsage.STORAGE);
   const bufferB = createBuffer(gpuDevice, arrB, GPUBufferUsage.STORAGE);
   const bufferC = gpuDevice.createBuffer({
-    size: arrA.byteLength,
+    size: bufferSizeC,
     usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC,
   });
-  const bufferN = gpuDevice.createBuffer({
-    size: 16,
-    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+
+  const outputBuffer = gpuDevice.createBuffer({
+    size: bufferSizeC,
+    usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
   });
-  gpuDevice.queue.writeBuffer(bufferN, 0, new Uint32Array([N]));
   //#endregion
 
-  const shader = /* wgsl */ `
+  try {
+    const shader = /* wgsl */ `
 @group(0) @binding(0) var<storage, read> A : array<f32>;
 @group(0) @binding(1) var<storage, read> B : array<f32>;
 @group(0) @binding(2) var<storage, read_write> C : array<f32>;
-@group(0) @binding(3) var<uniform> N: u32;
 
-@compute @workgroup_size(64)
+@compute @workgroup_size(${THREAD_WORKGROUP_SIZE})
 fn main(@builtin(global_invocation_id) id : vec3<u32>) {
   let i = id.x;
-  if (i >= N) {return;}
+  if (i >= arrayLength(&A)) {return;}
 
   C[i] = A[i] + B[i];
 }
 `;
-  const module = gpuDevice.createShaderModule({ code: shader });
-  const pipeline = await gpuDevice.createComputePipelineAsync({
-    layout: "auto",
-    compute: {
-      module,
-      entryPoint: "main",
-    },
-  });
-  const bindGroup = gpuDevice.createBindGroup({
-    layout: pipeline.getBindGroupLayout(0),
-    entries: [
-      { binding: 0, resource: { buffer: bufferA } },
-      { binding: 1, resource: { buffer: bufferB } },
-      { binding: 2, resource: { buffer: bufferC } },
-      { binding: 3, resource: { buffer: bufferN } },
-    ],
-  });
+    const module = gpuDevice.createShaderModule({ code: shader });
+    //#region Handle compile error
+    const compilationInfo = await module.getCompilationInfo();
+    const errors = compilationInfo.messages.filter((m) => m.type === "error");
+    if (errors.length > 0) {
+      throw new Error(
+        `Shader compilation failed:\n${errors.map((e) => e.message).join("\n")}`,
+      );
+    }
 
-  //#region Dispatch compute
-  const encoder = gpuDevice.createCommandEncoder();
-  const pass = encoder.beginComputePass();
+    //#endregion
 
-  pass.setPipeline(pipeline);
-  pass.setBindGroup(0, bindGroup);
+    const pipeline = await gpuDevice.createComputePipelineAsync({
+      layout: "auto",
+      compute: {
+        module,
+        entryPoint: "main",
+      },
+    });
+    const bindGroup = gpuDevice.createBindGroup({
+      layout: pipeline.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: { buffer: bufferA } },
+        { binding: 1, resource: { buffer: bufferB } },
+        { binding: 2, resource: { buffer: bufferC } },
+      ],
+    });
 
-  const workgroupSize = 64;
-  const numWorkgroups = Math.ceil(N / workgroupSize);
+    //#region Dispatch compute
+    const encoder = gpuDevice.createCommandEncoder();
+    const pass = encoder.beginComputePass();
 
-  pass.dispatchWorkgroups(numWorkgroups);
-  pass.end();
+    pass.setPipeline(pipeline);
+    pass.setBindGroup(0, bindGroup);
 
-  gpuDevice.queue.submit([encoder.finish()]);
-  await gpuDevice.queue.onSubmittedWorkDone();
-  //#endregion
+    const numWorkgroups = Math.ceil(N / THREAD_WORKGROUP_SIZE);
 
-  //#region Get result back
-  const readBuffer = gpuDevice.createBuffer({
-    size: arrA.byteLength,
-    usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
-  });
+    pass.dispatchWorkgroups(numWorkgroups);
+    pass.end();
+    //#endregion
 
-  const copyEncoder = gpuDevice.createCommandEncoder();
-  copyEncoder.copyBufferToBuffer(bufferC, 0, readBuffer, 0, arrA.byteLength);
-  gpuDevice.queue.submit([copyEncoder.finish()]);
-  await gpuDevice.queue.onSubmittedWorkDone();
+    //#region Get result back
+    encoder.copyBufferToBuffer(bufferC, 0, outputBuffer, 0, bufferSizeC);
+    //#endregion
 
-  await readBuffer.mapAsync(GPUMapMode.READ);
-  const result = Float32Array.from(
-    new Float32Array(readBuffer.getMappedRange()),
-  );
-  readBuffer.unmap();
-  //#endregion
+    //#region Submit and wait for result
+    gpuCmdQueue.submit([encoder.finish()]);
+    //#endregion
 
-  console.log(result);
+    //#region Read result
+    await outputBuffer.mapAsync(GPUMapMode.READ);
+    const output = Float32Array.from(
+      new Float32Array(outputBuffer.getMappedRange()),
+    ); // Safe copy
+    outputBuffer.unmap();
+    //#endregion
+
+    console.log(output);
+  } finally {
+    bufferA.destroy();
+    bufferB.destroy();
+    bufferC.destroy();
+    outputBuffer.destroy();
+    gpuDevice.destroy();
+  }
 }
 
 void main().finally(() => {
