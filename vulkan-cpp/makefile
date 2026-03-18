@@ -1,9 +1,12 @@
 
-build:
-	g++ src/main00001.cpp \
+comp:
+	g++ src/main00003.cpp \
 	-lvulkan \
 	-std=c++17 \
 	-o main
 
-dev: build
+comp_shader:
+	glslangValidator -V src/main00003-shader.comp.glsl -o shader.spv
+
+dev: comp
 	./main
